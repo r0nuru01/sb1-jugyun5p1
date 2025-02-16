@@ -1,48 +1,124 @@
-import React, { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { BarChart, Bar, LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { ChevronUp, ChevronDown, AlertCircle, Calendar, DollarSign, Users, Clock, CheckCircle, BarChart2 } from 'lucide-react';
+import debounce from 'lodash.debounce';
 
 const Dashboard = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('1M');
-  
-  // Sample data
-  const kpiData = [
-    { name: 'Total Contingent Workers', value: 1250, target: 1300, status: 'below', icon: Users, change: '+12%' },
-    { name: 'Total Spend ($M)', value: 15.2, target: 14.8, status: 'above', icon: DollarSign, change: '+5.4%' },
-    { name: 'Average Hourly Rate', value: 52.50, target: 50.00, status: 'above', icon: Clock, change: '+2.5%' },
-    { name: 'Vendor Compliance Rate', value: 92, target: 95, status: 'below', icon: CheckCircle, change: '-3%' },
-    { name: 'Fill Rate', value: 88, target: 90, status: 'below', icon: BarChart2, change: '-2%' },
-    { name: 'Time-to-Fill (days)', value: 28, target: 25, status: 'above', icon: Calendar, change: '+3d' }
-  ];
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [kpiData, setKpiData] = useState<KPI[]>([]);
+  const [vendorData, setVendorData] = useState<Vendor[]>([]);
+  const [trendData, setTrendData] = useState<Trend[]>([]);
+  const [cachedData, setCachedData] = useState<{ [key: string]: { kpiData: KPI[], vendorData: Vendor[], trendData: Trend[] } }>({});
 
-  const vendorData = [
-    { name: 'Vendor A', compliance: 95, fillRate: 92, timeToFill: 25, workers: 450 },
-    { name: 'Vendor B', compliance: 88, fillRate: 85, timeToFill: 30, workers: 380 },
-    { name: 'Vendor C', compliance: 93, fillRate: 89, timeToFill: 27, workers: 420 }
-  ];
+  interface KPI {
+    name: string;
+    value: number | string;
+    target: number | string;
+    status: string;
+    icon: React.ComponentType<{ className?: string }>;
+    change: string;
+  }
 
-  const trendData = [
-    { month: 'Jan', workers: 1100, spend: 13.5 },
-    { month: 'Feb', workers: 1150, spend: 14.2 },
-    { month: 'Mar', workers: 1200, spend: 14.8 },
-    { month: 'Apr', workers: 1250, spend: 15.2 }
-  ];
+  interface Vendor {
+    name: string;
+    compliance: number;
+    fillRate: number;
+    timeToFill: number;
+    workers: number;
+  }
 
-  const KPICard = ({ kpi }) => {
+  interface Trend {
+    month: string;
+    workers: number;
+    spend: number;
+  }
+
+  const fetchData = useCallback(async (period: string) => {
+    setLoading(true);
+    try {
+      // Simulate data fetching
+      setTimeout(() => {
+        // Sample data
+        const newKpiData = [
+          { name: 'Total Contingent Workers', value: 1250, target: 1300, status: 'below', icon: Users, change: '+12%' },
+          { name: 'Total Spend ($M)', value: 15.2, target: 14.8, status: 'above', icon: DollarSign, change: '+5.4%' },
+          { name: 'Average Hourly Rate', value: 52.50, target: 50.00, status: 'above', icon: Clock, change: '+2.5%' },
+          { name: 'Vendor Compliance Rate', value: 92, target: 95, status: 'below', icon: CheckCircle, change: '-3%' },
+          { name: 'Fill Rate', value: 88, target: 90, status: 'below', icon: BarChart2, change: '-2%' },
+          { name: 'Time-to-Fill (days)', value: 28, target: 25, status: 'above', icon: Calendar, change: '+3d' }
+        ];
+
+        const newVendorData = [
+          { name: 'Vendor A', compliance: 95, fillRate: 92, timeToFill: 25, workers: 450 },
+          { name: 'Vendor B', compliance: 88, fillRate: 85, timeToFill: 30, workers: 380 },
+          { name: 'Vendor C', compliance: 93, fillRate: 89, timeToFill: 27, workers: 420 }
+        ];
+
+        const newTrendData = [
+          { month: 'Jan', workers: 1100, spend: 13.5 },
+          { month: 'Feb', workers: 1150, spend: 14.2 },
+          { month: 'Mar', workers: 1200, spend: 14.8 },
+          { month: 'Apr', workers: 1250, spend: 15.2 }
+        ];
+
+        setKpiData(newKpiData);
+        setVendorData(newVendorData);
+        setTrendData(newTrendData);
+
+        setCachedData(prev => ({
+          ...prev,
+          [period]: { kpiData: newKpiData, vendorData: newVendorData, trendData: newTrendData }
+        }));
+
+        setLoading(false);
+      }, 1000);
+    } catch (err: any) {
+      setError(err);
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (cachedData[selectedPeriod]) {
+      const { kpiData, vendorData, trendData } = cachedData[selectedPeriod];
+      setKpiData(kpiData);
+      setVendorData(vendorData);
+      setTrendData(trendData);
+      setLoading(false);
+    } else {
+      fetchData(selectedPeriod);
+    }
+  }, [selectedPeriod, cachedData, fetchData]);
+
+  const debouncedSetSelectedPeriod = debounce((period: string) => {
+    setSelectedPeriod(period);
+  }, 300);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error loading data: {error.message}</div>;
+  }
+
+  const KPICard = ({ kpi }: { kpi: KPI }) => {
     const Icon = kpi.icon;
-    const getStatusColor = (status) => {
+    const getStatusColor = (status: string) => {
       return status === 'above' ? 'text-red-500' : 'text-blue-500';
     };
 
-    const getStatusIcon = (status) => {
+    const getStatusIcon = (status: string) => {
       return status === 'above' ? 
         <ChevronUp className="inline w-4 h-4" /> : 
         <ChevronDown className="inline w-4 h-4" />;
     };
 
-    const getChangeColor = (change) => {
+    const getChangeColor = (change: string) => {
       return change.startsWith('+') ? 'text-emerald-600' : 'text-red-600';
     };
 
@@ -77,7 +153,7 @@ const Dashboard = () => {
       {['1W', '1M', '3M', '6M', '1Y'].map((period) => (
         <button
           key={period}
-          onClick={() => setSelectedPeriod(period)}
+          onClick={() => debouncedSetSelectedPeriod(period)}
           className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
             selectedPeriod === period
               ? 'bg-white text-gray-900 shadow-sm'
@@ -142,7 +218,7 @@ const Dashboard = () => {
                       <Legend />
                       <Bar 
                         dataKey="compliance" 
-                        fill="#4F46E5" 
+                        fill="#FF1F3E" 
                         name="Compliance (%)"
                         radius={[4, 4, 0, 0]}
                       />
@@ -192,7 +268,7 @@ const Dashboard = () => {
                         <Scatter 
                           name="Vendors" 
                           data={vendorData} 
-                          fill="#4F46E5"
+                          fill="#FF1F3E"
                           shape="circle"
                         />
                       </ScatterChart>
@@ -225,7 +301,7 @@ const Dashboard = () => {
                         />
                         <Bar 
                           dataKey="workers" 
-                          fill="#82ca9d" 
+                          fill="#FF1F3E" 
                           name="Workers"
                           radius={[4, 4, 0, 0]}
                         />
@@ -276,7 +352,7 @@ const Dashboard = () => {
                         yAxisId="left" 
                         type="monotone" 
                         dataKey="workers" 
-                        stroke="#4F46E5" 
+                        stroke="#FF1F3E" 
                         name="Total Workers"
                         strokeWidth={2}
                         dot={{ strokeWidth: 2 }}
